@@ -26,4 +26,4 @@ jobs:
       - uses: github/codeql-action/init@7d9249f5a57288b8a472ddd9cc3ece1921f7dc38 # v4.37.7
         with:
           languages: python
-      - uses: github/codeql-action/analyze@7d9249f5a57288b8a472ddd9cc3ece1921f7dc38 # v4.37.7
+      - uses: github/codeql-action/analyze@1f87aed5e66849f0c43ae147377cc77f2d98ac99 # v4.37.7
