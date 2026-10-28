@@ -3,6 +3,52 @@
 All notable changes are documented here. The project follows semantic
 versioning after the v0.x experimental series.
 
+## 0.2.0 - 2026-09-23
+
+### Added
+
+- Offline, data-only comparison of frozen evaluator judgments, including
+  categorical and exact numeric transitions, repeated trials, declared
+  invariance relations, critical groups, and raw and aggregate anchors.
+- Explicit evaluator, corpus, component, and context provenance with strict
+  comparability checks and reviewed context exceptions.
+- Human-authored contracts using a closed metric vocabulary, explicit missing
+  evidence behavior, and hard, review, or informational rule severities.
+- Canonical JSON evidence, bounded Markdown and scriptless HTML projections,
+  and exhaustive JSON plus bounded Markdown review queues with exact pointers.
+- Four bundled structural schemas, runtime semantic validation, resource limits,
+  validation-only preflight, and an inert authoring scaffold.
+- A public producer API with explicit semantic decisions, unresolved-marker
+  guards, deterministic serialization, and synthetic offline examples.
+- Read-only `contract-review` with source-bound contract coverage, evidence
+  availability, and advisory duplicate-rule warnings. Coverage does not rate
+  policy sufficiency or evaluator correctness.
+
+### Changed
+
+- Adopted ReplayDocket as the public brand and `replaydocket` as the distribution
+  and preferred CLI. The `evalcanary` CLI, Python imports, environment variables,
+  schema identifiers, canonical provenance and historical repository remain
+  compatible. See [migration guidance](docs/MIGRATION.md).
+- Prepared new ReplayDocket presentation assets while preserving the original
+  EvalCanary images and immutable v0.1.0/v0.1.1 release history.
+- Updated the release procedure, candidate-date policy, two-workflow quickstart,
+  privacy guidance and packaged assurance documentation.
+
+### Fixed
+
+- Reject excessively nested JSON through the handled validation-error path.
+- Bound preflight input and contract reads before parsing, enforcing the existing
+  configured byte limit without changing valid-input policy semantics.
+
+- Hardened assurance report recovery, queue integrity, canonical relation
+  configuration, and bounded numeric reviewer projections during development.
+- Added hosted CI definitions for the extracted-sdist full test suite and the
+  Windows PowerShell 5.1 parser gate.
+
+The trusted-verifier `diff` workflow remains supported. Assurance results are
+review evidence, not automatic correctness certification.
+
 ## 0.1.1 - 2026-08-08
 
 ### Changed

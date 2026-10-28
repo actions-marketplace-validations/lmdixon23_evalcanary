@@ -1,16 +1,22 @@
-# EvalCanary
+# ReplayDocket
 
 [![CI](https://github.com/lmdixon23/evalcanary/actions/workflows/ci.yml/badge.svg)](https://github.com/lmdixon23/evalcanary/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/lmdixon23/evalcanary/actions/workflows/codeql.yml/badge.svg)](https://github.com/lmdixon23/evalcanary/actions/workflows/codeql.yml)
 [![Python 3.11–3.14](https://img.shields.io/badge/python-3.11--3.14-3776AB.svg)](https://www.python.org/)
 [![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Catch evaluation drift before it ships.**
+**Local evidence for evaluator migrations**
 
-EvalCanary shows exactly which fixed evaluation results change when a verifier,
-scorer, rubric implementation, or grading rule changes.
+![ReplayDocket: paired evidence sheets and verdict transitions](docs/assets/replaydocket-featured-card.png)
 
-It treats an evaluator update as a migration:
+ReplayDocket compares evaluator/verifier versions and produces deterministic,
+reviewable evidence with provenance, explicit contracts and policy gates.
+
+For the data-only `migrate` workflow: compare frozen evaluator outputs across
+versions and produce deterministic, reviewable evidence without rerunning the
+evaluator. The legacy `diff` workflow executes trusted verifier code.
+
+The legacy `diff` workflow treats an evaluator update as a migration:
 
 - replay the same output corpus against both versions;
 - classify every verdict transition;
@@ -19,10 +25,11 @@ It treats an evaluator update as a migration:
 - attach source and execution provenance;
 - enforce explicit CI policy gates.
 
-EvalCanary does **not** determine automatically which evaluator is correct. It
+ReplayDocket does **not** determine automatically which evaluator is correct. It
 produces the change packet that a domain reviewer needs.
 
-![EvalCanary synthetic migration report](docs/assets/evalcanary-demo-report.png)
+See the [name and installation migration note](docs/MIGRATION.md) for the
+stable Python API, compatibility command and historical release boundary.
 
 ## Why evaluator migrations need their own diff
 
@@ -31,39 +38,67 @@ cases reverse in opposite directions. In reinforcement learning with verifiable
 rewards, an evaluator defect can become a training signal rather than merely a
 reporting error.
 
-EvalCanary holds the model-output corpus fixed and changes only the evaluator.
-That isolates evaluator sensitivity from model sampling, prompt changes, and
-new generations.
+The `diff` workflow holds the model-output corpus fixed and changes only the
+trusted evaluator implementation. The `migrate` workflow compares already-produced
+outputs with their declared context and provenance; it does not rerun evaluators.
 
 ## Five-minute local start
 
-Requires Python 3.11 or later; v0.1.1 is tested on Python 3.11–3.14. The runtime has no third-party dependencies.
+Requires Python 3.11 or later. The runtime has no third-party dependencies.
+These commands use the current source checkout. ReplayDocket is the successor
+public name beginning with v0.2; v0.1.0/v0.1.1 were released as EvalCanary.
+This checkout contains ReplayDocket 0.2.0.
+Run the following commands from the repository root.
 
 ```console
-git clone https://github.com/lmdixon23/evalcanary.git
-cd evalcanary
 python -m venv .venv
 .venv/bin/python scripts/bootstrap_local.py
-.venv/bin/evalcanary demo --out evalcanary-demo
+.venv/bin/replaydocket demo --out evalcanary-demo
 ```
 
 Windows PowerShell:
 
 ```powershell
-git clone https://github.com/lmdixon23/evalcanary.git
-Set-Location evalcanary
 py --version
 py -m venv .venv
 & .\.venv\Scripts\python.exe .\scripts\bootstrap_local.py
-& .\.venv\Scripts\evalcanary.cmd demo --out .\evalcanary-demo
+& .\.venv\Scripts\replaydocket.cmd demo --out .\evalcanary-demo
 ```
 
 Open `evalcanary-demo/report/report.html`.
 
+![Desktop report from ReplayDocket 0.2.0](docs/assets/replaydocket-demo-report.png)
+
+[Mobile capture](docs/assets/replaydocket-demo-mobile.png) /
+[Capture provenance](docs/assets/README.md). Both show the synthetic trusted-verifier
+demo, not the data-only assurance report.
+
+
+## Try the bundled offline assurance example
+
+From the repository root, using the environment's `replaydocket` command
+(`.venv/bin/replaydocket` or `.\.venv\Scripts\replaydocket.cmd`):
+
+```console
+replaydocket migrate --preflight --input src/evalcanary/examples/assurance/numeric.jsonl
+replaydocket migrate --input src/evalcanary/examples/assurance/numeric.jsonl --out numeric-assurance-report
+```
+
+This synthetic example has no acceptance contract. Exit 0 with
+`CONTRACT_NOT_CONFIGURED` establishes completed evidence generation, not policy
+approval. Choose fresh output directories for examples; `demo` replaces its
+destination. For installed-package example locations and contract review, see
+the [packaged guide](src/evalcanary/examples/assurance/README.md).
+
+The public heading is ReplayDocket. Canonical provenance retains `EvalCanary`
+as a stable machine identity, explained in the [migration guide](docs/MIGRATION.md).
+Natural-language limitations describe the comparison and are not brand identities.
+
 ## Use the GitHub Action
 
-The caller must set up Python 3.11 or later. The exact release tag is preferred
-for reproducibility.
+The caller must set up Python 3.11 or later. This example intentionally uses
+the historical EvalCanary v0.1.1 Action, with its existing trusted-verifier
+`diff` behavior. The repository and historical Action addresses are unchanged.
 
 ```yaml
 name: Evaluator migration
@@ -142,7 +177,7 @@ def verify(case: dict) -> dict:
 Run:
 
 ```console
-evalcanary diff \
+replaydocket diff \
   --data outputs.jsonl \
   --before verifier_before.py \
   --after verifier_after.py \
@@ -164,7 +199,32 @@ the report audience. Original case payloads likewise require the separate
 report provenance and recorded commands; content hashes provide artifact
 identity.
 
-## CI policy
+## Analyze a frozen evaluator migration
+
+Compare frozen evaluator outputs across versions and produce deterministic,
+reviewable evidence without rerunning the evaluator.
+
+The `migrate` path consumes a strict, data-only assurance artifact.
+It does not import or run evaluators, benchmark tasks, patches, or model output,
+and report generation makes no network request.
+
+```console
+replaydocket migrate \
+  --input evaluator-assurance.jsonl \
+  --contract evaluator-contract.json \
+  --out evaluator-assurance-report
+```
+
+The optional contract uses a closed metric vocabulary and hard, review, or
+informational severities. Output is one canonical JSON model plus fact-parity
+Markdown and accessible, scriptless HTML, together with exhaustive JSON and
+bounded Markdown review queues. Reports and queues are metadata-only by default.
+Use `migrate --preflight` for validation-only authoring diagnostics, `schema`
+for the four offline structural contracts, and `init` for an inert scaffold.
+See the [evaluator-assurance reference](docs/EVALUATOR_ASSURANCE.md) for the
+schema boundary, privacy rules, resource limits, and exit statuses.
+
+## CI policy for trusted-verifier diff
 
 ```toml
 [policy]
@@ -179,14 +239,17 @@ require_statistical_review_below_p = 0.05
 
 Exit codes:
 
-- `0`: comparison completed and the configured policy passed;
+- `0`: comparison completed with no policy, or the configured policy passed;
 - `2`: comparison completed and the configured policy failed;
 - `3`: input, execution, or configuration error.
 
+Command syntax errors also use exit 2. The separate `migrate` workflow uses
+exit 4 for required review; see its reference.
+
 ## Public boundary
 
-Version 0.1 supports trusted deterministic Python verifiers and pass/fail
-migration analysis. It does not yet provide:
+ReplayDocket 0.2.0 supports trusted deterministic Python verifier replay and
+offline analysis of frozen categorical and numeric judgments. It does not provide:
 
 - an untrusted-code sandbox;
 - repeated LLM-judge sampling;
@@ -201,6 +264,7 @@ migration analysis. It does not yet provide:
 - [Verifier API](docs/VERIFIER_API.md)
 - [Policy reference](docs/POLICY.md)
 - [Report schema](docs/REPORT_SCHEMA.md)
+- [Evaluator-assurance reference](docs/EVALUATOR_ASSURANCE.md)
 - [Product assurance](docs/ASSURANCE.md)
 - [Release procedure](docs/RELEASING.md)
 - [Roadmap](docs/ROADMAP.md)

@@ -1,4 +1,4 @@
-"""Command-line interface for EvalCanary."""
+"""Command-line interface for ReplayDocket."""
 
 from __future__ import annotations
 
@@ -9,6 +9,15 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .assurance._contract_review import _review_contract, _review_text
+from .assurance.engine import build_report as build_assurance_report
+from .assurance.engine import exit_code_for_report
+from .assurance.numeric import canonical_json_text
+from .assurance.preflight import preflight_paths
+from .assurance.renderers import write_report_bundle
+from .assurance.scaffold import create_scaffold
+from .assurance.schema import Limits, load_artifact, load_contract
+from .assurance.structural import canonical_schema_bytes
 from .compare import compare_verdicts
 from .errors import EvalCanaryError, InputValidationError
 from .io import load_cases
@@ -19,17 +28,18 @@ from .runner import run_verifier
 EXIT_OK = 0
 EXIT_POLICY_FAIL = 2
 EXIT_ERROR = 3
+EXIT_REVIEW_REQUIRED = 4
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="evalcanary",
-        description="Catch evaluation drift before it ships.",
+        prog="replaydocket",
+        description="ReplayDocket - Local evidence for evaluator migrations",
     )
     parser.add_argument(
         "--version",
         action="version",
-        version=f"EvalCanary {__version__}",
+        version=f"ReplayDocket {__version__}",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -119,6 +129,72 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out", type=Path, default=Path("evalcanary-demo")
     )
 
+    migrate = sub.add_parser(
+        "migrate",
+        help="Analyze frozen evaluator-assurance JSONL evidence without executing it.",
+    )
+    migrate.add_argument(
+        "--input",
+        type=Path,
+        required=True,
+        help="Strict evaluator-assurance-input-v1 JSONL artifact.",
+    )
+    migrate.add_argument(
+        "--contract",
+        type=Path,
+        help="Optional evaluator-assurance-contract-v1 JSON document.",
+    )
+    migrate.add_argument(
+        "--limits",
+        type=Path,
+        help="Optional local bounded resource-limit override document.",
+    )
+    migrate.add_argument(
+        "--out",
+        type=Path,
+        default=Path("evalcanary-assurance-report"),
+        help="Output directory for canonical JSON, Markdown, and HTML.",
+    )
+    migrate.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Validate inputs only; write no report packet and return only 0 or 3.",
+    )
+
+    review = sub.add_parser(
+        "contract-review",
+        help="Show bounded advisory contract coverage and mechanical lint on stdout.",
+    )
+    review.add_argument("--input", type=Path, required=True)
+    review.add_argument("--contract", type=Path, required=True)
+    review.add_argument("--limits", type=Path)
+
+    schema = sub.add_parser(
+        "schema",
+        help="Write one bundled evaluator-assurance JSON Schema to stdout.",
+    )
+    schema.add_argument(
+        "selector",
+        help="input-record, contract, report, or review-queue",
+    )
+
+    init = sub.add_parser(
+        "init",
+        help="Create an inert evaluator-assurance authoring scaffold.",
+    )
+    init.add_argument(
+        "--judgment",
+        choices=("categorical", "numeric", "categorical_and_numeric"),
+        required=True,
+    )
+    init.add_argument(
+        "--label",
+        action="append",
+        default=[],
+        help="Explicit categorical label; repeat for every label.",
+    )
+    init.add_argument("--out", type=Path, required=True)
+
     return parser
 
 
@@ -157,7 +233,7 @@ def _run_diff(args: argparse.Namespace, argv: list[str]) -> int:
     write_html(summary, args.out / "report.html")
 
     changed = summary.pass_to_fail + summary.fail_to_pass
-    print("EvalCanary evaluator migration report")
+    print("ReplayDocket evaluator migration report")
     print(f"  cases: {summary.total_cases}")
     print(f"  comparable: {summary.comparable_cases}")
     print(f"  errors: {summary.error_cases}")
@@ -234,6 +310,64 @@ def _run_demo(args: argparse.Namespace) -> int:
     return _run_diff(demo_args, ["demo"])
 
 
+def _run_migrate(args: argparse.Namespace) -> int:
+    if args.preflight:
+        result = preflight_paths(
+            args.input,
+            contract_path=args.contract,
+            limits_path=args.limits,
+        )
+        print(canonical_json_text(result.document()))
+        return EXIT_OK if result.valid else EXIT_ERROR
+    limits = Limits.from_path(args.limits)
+    artifact = load_artifact(args.input, limits=limits)
+    contract = load_contract(args.contract, artifact)
+    report = build_assurance_report(artifact, contract)
+    source_paths = tuple(
+        path for path in (args.input, args.contract, args.limits) if path is not None
+    )
+    del contract
+    del artifact
+    write_report_bundle(
+        report,
+        args.out,
+        limits=limits,
+        source_paths=source_paths,
+    )
+    print("ReplayDocket evaluator-assurance report")
+    print(f"  evidence: {report['evidence_status']}")
+    print(f"  isolation: {report['isolation_status']}")
+    print(f"  contract: {report['contract_status']}")
+    print(f"  status: {report['report_status']}")
+    print(f"  report: {args.out.resolve()}")
+    return exit_code_for_report(report)
+
+
+def _run_contract_review(args: argparse.Namespace) -> int:
+    limits = Limits.from_path(args.limits)
+    artifact = load_artifact(args.input, limits=limits)
+    contract = load_contract(args.contract, artifact)
+    assert contract is not None
+    report = build_assurance_report(artifact, contract)
+    sys.stdout.write(_review_text(_review_contract(contract, report), limits))
+    return EXIT_OK
+
+
+def _run_schema(args: argparse.Namespace) -> int:
+    sys.stdout.write(canonical_schema_bytes(args.selector).decode("utf-8"))
+    return EXIT_OK
+
+
+def _run_init(args: argparse.Namespace) -> int:
+    output = create_scaffold(
+        judgment=args.judgment,
+        labels=args.label,
+        output=args.out,
+    )
+    print(f"Created inert evaluator-assurance scaffold: {output}")
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     raw_args = list(sys.argv[1:] if argv is None else argv)
@@ -245,6 +379,14 @@ def main(argv: list[str] | None = None) -> int:
             return _run_validate(args)
         if args.command == "demo":
             return _run_demo(args)
+        if args.command == "migrate":
+            return _run_migrate(args)
+        if args.command == "contract-review":
+            return _run_contract_review(args)
+        if args.command == "schema":
+            return _run_schema(args)
+        if args.command == "init":
+            return _run_init(args)
         parser.error("Unknown command.")
     except EvalCanaryError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

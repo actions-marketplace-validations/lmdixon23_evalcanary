@@ -71,7 +71,7 @@ def verify_release_metadata() -> str:
         raise RuntimeError("The repository must contain exactly one root action metadata file")
     action_text = metadata_paths[0].read_text(encoding="utf-8")
     required_action_fragments = (
-        "name: EvalCanary Diff",
+        "name: ReplayDocket Diff",
         "using: composite",
         "report_json:",
         "run_id:",
@@ -122,6 +122,13 @@ def verify_workflow_action_pins() -> int:
     return references
 
 
+def verify_assurance_schema_drift() -> None:
+    sys.path.insert(0, str(ROOT / "src"))
+    from evalcanary.assurance.structural import verify_checked_in_schemas
+
+    verify_checked_in_schemas()
+
+
 def main() -> int:
     pass_items: list[str] = []
     fail_items: list[str] = []
@@ -143,6 +150,15 @@ def main() -> int:
             "Workflow action SHA-pin and trigger gate passed: "
             f"{pinned_references} references"
         )
+
+        verify_assurance_schema_drift()
+        pass_items.append("Assurance structural schema byte-drift gate passed")
+
+        run(
+            [sys.executable, "scripts/generate_assurance_examples.py", "--check"],
+            env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        )
+        pass_items.append("Offline assurance producer examples passed byte-drift gate")
 
         env = os.environ.copy()
         env["PYTHONPATH"] = str(ROOT / "src")
@@ -222,7 +238,7 @@ def main() -> int:
         fail_items.append(str(exc))
 
     print()
-    print("EvalCanary release-check summary")
+    print("ReplayDocket release-check summary")
     print(f"PASS: {len(pass_items)}")
     for item in pass_items:
         print(f"  PASS {item}")

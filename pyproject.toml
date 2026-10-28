@@ -3,9 +3,9 @@ requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "evalcanary"
-version = "0.1.1"
-description = "Catch evaluation drift before it ships."
+name = "replaydocket"
+version = "0.2.0"
+description = "Local evidence for evaluator migrations"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -45,6 +45,7 @@ dev = [
 ]
 
 [project.scripts]
+replaydocket = "evalcanary.cli:main"
 evalcanary = "evalcanary.cli:main"
 
 [project.urls]
@@ -60,7 +61,12 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-evalcanary = ["py.typed", "examples/exact_match/*"]
+evalcanary = [
+  "py.typed",
+  "examples/exact_match/*",
+  "examples/assurance/*",
+  "assurance/schemas/*.schema.json",
+]
 
 [tool.ruff]
 target-version = "py311"
